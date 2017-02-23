@@ -16,7 +16,7 @@
 # ----
 
 SPEC = '''
-10x10:02..20............20.02..2.........0.03.02.0............2.10.20.0.........3..01.02............01..01
+3x3:.01...2..
 '''
 
 # ---------------------------------------------------------------------------- #
@@ -31,11 +31,11 @@ DRAW = 'd'
 BLOCK = 'x'
 UNDEFINED = null
 
-# 途中経過を表示
-WATCH_IN_PROGRESS = off
-
 # run test only
 TEST_MODE = off
+
+# 途中経過を表示
+WATCH_IN_PROGRESS = on and (not TEST_MODE)
 
 unique_filter = (value, index, list) -> list.indexOf(value) is index
 
@@ -172,7 +172,7 @@ class Matrix
   #  Object: line_key, line_key[]
   @ConnectorPeer: null
 
-  @round: 1
+  @attempt: 1
 
   @forceQuit: false
 
@@ -234,13 +234,10 @@ class Matrix
 
     # --------------------------------
     # 途中経過を表示
-    preserved_round = Matrix.round
-    watching = false
-    if (not TEST_MODE) and WATCH_IN_PROGRESS
-      unit = 10
-      console.log("")
-      console.log("-------- Round ##{Matrix.round} depth:#{@depth} --------")
-      console.log("attempt to draw line at #{line_key}")
+    preserved_attempt = Matrix.attempt
+    if WATCH_IN_PROGRESS
+      console.log("\n-------- Attempt:#{Matrix.attempt} Depth:#{@depth} --------")
+      console.log("Draw line at #{line_key}\n")
     # --------------------------------
 
     if @lines[line_key]?
@@ -259,11 +256,8 @@ class Matrix
 
     # --------------------------------
     # 途中経過を表示
-    if watching
-      unit = 10
-      if Matrix.round % unit is 0
-        Solver.show(this)
-        console.log("")
+    if WATCH_IN_PROGRESS
+      Solver.show(this)
     # --------------------------------
 
     @inspectBoxes(@findBoxes(effected_lines))
@@ -271,16 +265,17 @@ class Matrix
     if connected
       @sufficientAllBoxes()
       @inspectLoop(line_key)
+      if WATCH_IN_PROGRESS
+        console.log("Solved. Attempt:#{preserved_attempt}\n")
       return this
 
-    # 次のLineをDraw
-    Matrix.round++
-    console.log("drawing at #{line_key} with no violation, next round.") if watching
+    if WATCH_IN_PROGRESS
+      console.log("No violation, go to next.")
 
-    line_list = Matrix.ConnectorPeer[line_key][0]
-    if @countLines(line_list, DRAW) isnt 0
-      line_list = Matrix.ConnectorPeer[line_key][1]
-    line_list = line_list.filter((key) => @lines[key] is UNDEFINED)
+    # 次のLineをDraw
+    Matrix.attempt++
+
+    line_list = @prepareNextLines(line_key)
     if line_list.length is 1
       return @drawLine(line_list[0])
     else
@@ -290,9 +285,9 @@ class Matrix
           return m.drawLine(next_line)
         catch error
           throw error if error instanceof Error
-          console.log(error.message) if watching
+          console.log(error.message) if WATCH_IN_PROGRESS
 
-    throw {message: "Unable to solve, play back to Round ##{preserved_round - 1}", conclusion: true}
+    throw {message: "Failed all, play back to Attempt:#{preserved_attempt - 1}", conclusion: true}
 
   ###
     LineをDRAWにしたことで発生するBLOCK
@@ -425,7 +420,7 @@ class Matrix
 
       draw_count = @countLines(Matrix.LinesOnBox[box_key], DRAW)
       if draw_count isnt box_value
-        throw {message: "BoxViolation: not sufficient at #{box_key}"}
+        throw {message: "LoopViolation: not sufficient at #{box_key}"}
 
   ###
     ループの検査
@@ -457,6 +452,36 @@ class Matrix
     draw_count = @countLines(Object.keys(@lines), DRAW)
     if line_count isnt draw_count
       throw {message: "LoopViolation: find line outside of loop"}
+
+  ###
+    次に注目するLineを特定する
+  ###
+  prepareNextLines: (line_key) ->
+    line_list = Matrix.ConnectorPeer[line_key][0]
+    if @countLines(line_list, DRAW) isnt 0
+      line_list = Matrix.ConnectorPeer[line_key][1]
+
+    return line_list.filter((key) => @lines[key] is UNDEFINED)
+
+    # 作ってはみたものの、かえって遅くなるケースもあるのでひとまずお蔵入り
+    ###
+    # 各Lineのプライオリティを初期化
+    priority_map = {}
+    line_list.forEach((key) -> priority_map[key] = 0)
+
+    # Line(next_key)に隣接するBoxを見て、
+    for next_key in line_list
+      box_list = Matrix.BoxesOnLine[next_key]
+      for box_key in box_list
+        # Boxであと１本引けば、Boxの値を満たす場合、そのLineを先に試したい
+        draw_count = @countLines(Matrix.LinesOnBox[box_key], DRAW)
+        if @boxes[box_key] - draw_count is 1
+          # Boxの値が小さいほうが価値が高いことにする
+          priority_map[next_key] += (4 - @boxes[box_key])
+          break
+
+    return Object.keys(priority_map).sort((a, b) -> priority_map[b] - priority_map[a])
+    ###
 
   ###
     statusと一致するLineを数える
@@ -499,7 +524,6 @@ Solver =
     # 初期状態を表示
     console.log("---- Puzzle ----")
     @show(matrix, false)
-    console.log("")
 
     @solve(matrix)
 
@@ -515,8 +539,13 @@ Solver =
     return matrix.parseGrid(grid)
 
   solve: (matrix) ->
+    if WATCH_IN_PROGRESS
+      console.log("-------- Initialized --------\n")
+      @show(matrix)
+
     box_key = matrix.findStartBox()
     for line_key in Matrix.LinesOnBox[box_key]
+      continue if matrix.lines[line_key] isnt UNDEFINED
       try
         m = matrix.clone()
         m = m.drawLine(line_key)
@@ -525,14 +554,13 @@ Solver =
 
         # 解答を表示
         console.log("---- Solved ----")
-        console.log("Round: #{Matrix.round} depth: #{m.depth}")
+        console.log("Attempt: #{Matrix.attempt} depth: #{m.depth}")
         @show(m, false)
         break
       catch error
         throw error if error instanceof Error
         if WATCH_IN_PROGRESS
-          if error.conclusion?
-            console.log(error.message)
+          console.log(error.message)
 
   show: (matrix, with_x=true) ->
     for row in [0..matrix.height]
@@ -571,6 +599,7 @@ Solver =
             buffer += '   '
         buffer += '+'
       console.log(buffer)
+    console.log("")
 
 # ---------------------------------------------------------------------------- #
 # Test
@@ -748,7 +777,7 @@ if TEST_MODE
     # -----------------------------
     # sufficientAllBoxesのテスト
     #
-    expect_throw('sufficientAllBoxes1', 'BoxViolation: not sufficient at b,3,1', ->
+    expect_throw('sufficientAllBoxes1', 'LoopViolation: not sufficient at b,3,1', ->
       # 足りてない
       matrix = preserve_matrix.clone()
       matrix.lines[Key.line(HORIZ, 1, 3)] = DRAW
