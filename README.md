@@ -28,7 +28,7 @@
 
 例えば、`setTimeout`を利用する場合は、ファイルの一番下、`Solver.run()`の部分を以下のように書き換えればいいはずです。
 
-```
+```coffee
 force_quit = -> Matrix.forceQuit = true
 timer_id = setTimeout(force_quit, 5 * 1000)
 
@@ -36,6 +36,10 @@ Solver.run(SPEC.replace(/\s/g, ''))
 
 clearTimeout(timer_id)
 ```
+
+> 追記  
+> 完成後、10x10のパズルをいくつか試しましたが、完了まで3分程度かかるものがありました。
+> まだまだ改善の余地があるようです。
 
 ## なぜ作ったのか？
 
