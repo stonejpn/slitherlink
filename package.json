@@ -1,0 +1,35 @@
+{
+  "name": "slitherlink",
+  "version": "0.1.0-node",
+  "description": "A script to solve slitherlink",
+  "main": "lib/main.js",
+  "private": true,
+  "scripts": {
+    "start": "npm -s run devcompile && env NODE_PATH=./lib node lib/start.js",
+    "watch": "coffee -w -m -o lib/ -c src/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stonejpn/slitherlink.git"
+  },
+  "keywords": [
+    "puzzle",
+    "slitherlink"
+  ],
+  "author": {
+    "name": "S.Tonegawa",
+    "url": "https://github.com/stonejpn"
+  },
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/stonejpn/slitherlink/issues"
+  },
+  "homepage": "https://github.com/stonejpn/slitherlink#readme",
+  "engines": {
+    "node": "^6.10.0"
+  },
+  "devDependencies": {
+    "coffee-script": "^1.12.2",
+    "mocha": "^3.2.0"
+  }
+}
