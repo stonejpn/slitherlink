@@ -29,7 +29,10 @@
     "node": "^6.10.0"
   },
   "devDependencies": {
+    "chai": "^3.5.0",
     "coffee-script": "^1.12.2",
-    "mocha": "^3.2.0"
+    "mocha": "^3.2.0",
+    "sinon": "^1.17.7",
+    "sinon-chai": "^2.8.0"
   }
 }

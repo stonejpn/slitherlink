@@ -1,3 +1,8 @@
+'use strict'
+
+# --------------------------------
+# Line
+# --------------------------------
 module.exports =
   HORIZ: 'h'
   VERT: 'v'
@@ -23,6 +28,25 @@ module.exports =
   vert: (row, col) ->
     "#{@VERT},#{row},#{col}"
 
+  #
+  # @return KeyList[]
+  #
+  all: (width, height, callback=null) ->
+    key_list = []
+    # ヨコのLine
+    for row in [0..height]
+      for col in [1..width]
+        key_list.push(@horiz(row, col))
+        callback(@horiz(row, col)) if callback?
+
+    # タテのLine
+    for row in [1..height]
+      for col in [0..width]
+        key_list.push(@vert(row, col))
+        callback(@vert(row, col)) if callback?
+
+    return key_list
+
   ###*
    * @param {Object.<LineKey, LineStatus>}
    * @return {LineKey[]}
@@ -45,4 +69,4 @@ module.exports =
     @_countInternal(lines, @UNDEFINED)
 
   _countInternal: (lines, status) ->
-    Object.keys(lines).filter((key) -> lines[key] is status)
+    Object.keys(lines).filter((key) -> lines[key] is status).length
