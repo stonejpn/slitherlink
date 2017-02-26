@@ -1,6 +1,6 @@
 {
   "name": "slitherlink",
-  "version": "0.1.0-node",
+  "version": "0.1.0",
   "description": "A script to solve slitherlink",
   "main": "lib/solver.js",
   "private": true,
