@@ -41,6 +41,8 @@ module.exports =
       for line_key in next_list
         return if Worker.terminate
 
+        continue if matrix.lineValue(line_key)?
+
         m = Matrix.fromJson(matrix_json)
         try
           m.drawLine(line_key)
