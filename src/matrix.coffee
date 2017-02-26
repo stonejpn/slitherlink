@@ -6,6 +6,7 @@ BoxPeer = require "./box-peer"
 ConnectorPeer = require "./connector-peer"
 PeerMap = require "./peer-map"
 Violation = require "./violation"
+BoxConstraint = require "./box-constraint"
 
 module.exports =
   class Matrix
@@ -27,7 +28,7 @@ module.exports =
 
     @fromJson: (json_str) ->
       raw_object = JSON.parse(json_str)
-      new_matrix = new Matrix(raw_object.width, raw_object.height)
+      new_matrix = new Matrix(raw_object.w, raw_object.h)
       return Object.assign(new_matrix, raw_object)
 
     #
@@ -40,6 +41,18 @@ module.exports =
       @boxes = {}
       Box.all(@width, @height, (key) => @boxes[key] = null)
       @totalLine = 0
+
+    getWidth: ->
+      return @width
+
+    getHeight: ->
+      return @height
+
+    lineValue: (line_key) ->
+      return @lines[line_key]
+
+    boxValue: (box_key) ->
+      return @boxes[box_key]
 
     #
     # 指定のあるBoxに値を設定する
@@ -121,50 +134,14 @@ module.exports =
     evalBoxValues: (list_to_eval=null) ->
       if list_to_eval is null
         # 全部を評価
-        list_to_eval = []
-        # box_value=0を評価 + 値の指定されているBoxとlist_to_evalに追加
-        for box_key, box_value of @boxes
-          continue unless box_value?
-          if box_value isnt 0
-            list_to_eval.push(box_key)
-            continue
+        list_to_eval = Object.keys(@boxes).filter((box_key) => @boxes[box_key]?)
 
-          for line_key in BoxPeer.getPeer(box_key)
-            @blockLine(line_key) unless @lines[line_key]?
-
+        # box_value = 0
+        BoxConstraint.zeroValue(this)
+        # box_value = 3
+        BoxConstraint.threeValue(this)
         # 4つの角の制約
-        block_list = []
-        draw_list = []
-        # 左上
-        box_value = @boxes[Box.key(1, 1)]
-        if box_value is 1
-          block_list.push(Line.horiz(0, 1), Line.vert(1, 0))
-        else if box_value is 3
-          draw_list.push(Line.horiz(0, 1), Line.vert(1, 0))
-        # 右上
-        box_value = @boxes[Box.key(1, @width)]
-        if box_value is 1
-          block_list.push(Line.horiz(0, @width), Line.vert(1, @width))
-        else if box_value is 3
-          draw_list.push(Line.horiz(0, @width), Line.vert(1, @width))
-        # 左下
-        box_value = @boxes[Box.key(@height, 1)]
-        if box_value is 1
-          block_list.push(Line.horiz(@height, 1), Line.vert(@height, 0))
-        else if box_value is 3
-          draw_list.push(Line.horiz(@height, 1), Line.vert(@height, 0))
-        # 右下
-        box_value = @boxes[Box.key(@height, @width)]
-        if box_value is 1
-          block_list.push(Line.horiz(@height, @width), Line.vert(@height, @width))
-        else if box_value is 3
-          draw_list.push(Line.horiz(@height, @width), Line.vert(@height, @width))
-
-        for line_key in block_list
-          @blockLine(line_key) unless @lines[line_key]?
-        for line_key in draw_list
-          @drawLine(line_key) unless @lines[line_key]?
-
+        BoxConstraint.corners(this)
 
       for box_key in list_to_eval
         continue unless @boxes[box_key]?
@@ -211,6 +188,31 @@ module.exports =
         if @countDraw(BoxPeer.getPeer(box_key)) isnt box_value
           return false
       return true
+
+    isAllLineInLoop: (start_key) ->
+      [prev_key, curr_key] = [start_key, start_key]
+      count = 0
+      loop
+        count++
+        peer_list = ConnectorPeer.getPeers(curr_key)
+        peer = null
+        if peer_list[0].includes(prev_key)
+          peer = peer_list[1]
+        else
+          peer = peer_list[0]
+
+        peer_map = PeerMap.Create(peer, @lines)
+        if peer_map.draw.length is 1
+          if peer_map.draw[0] is start_key
+            # スタートしたLineに戻ってきた
+            break
+
+          [prev_key, curr_key] = [curr_key, peer_map.draw[0]]
+        else
+          # 途切れた
+          return false
+
+      return count is @totalLine
 
     #
     # 次の候補のLineを探す

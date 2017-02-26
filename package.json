@@ -5,7 +5,8 @@
   "main": "lib/solver.js",
   "private": true,
   "scripts": {
-    "start": "/usr/bin/env NODE_PATH=./lib node ./lib/cli.js"
+    "start": "/usr/bin/env NODE_PATH=./lib node ./lib/cli.js",
+    "prepublish": "coffee -o lib/ -c src/"
   },
   "repository": {
     "type": "git",

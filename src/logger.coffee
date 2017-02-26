@@ -29,6 +29,9 @@ module.exports =
     return unless @showInProgress
     console.log(message)
 
+  info: (message) ->
+    console.log(message)
+
   header: (message) ->
     console.log("-------- #{message} --------")
 

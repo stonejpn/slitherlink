@@ -12,8 +12,9 @@ Worker = require "./worker"
 ###
 module.exports =
   event: null
-  run: (puzzule, show_in_progress=false) ->
-    [size, grid] = puzzule.replace(/\s+/g, '').split(':')
+
+  run: (puzzle, show_in_progress=false) ->
+    [size, grid] = puzzle.replace(/\s+/g, '').split(':')
     [width, height] = size.split('x').map((c) -> parseInt(c, 10))
 
     # 初期化
@@ -46,6 +47,7 @@ module.exports =
   solved: (matrix) ->
     @event.removeAllListeners()
     Logger.solved(matrix)
+    Logger.info("Attempt: #{Worker.workload}")
 
   notSolved: (message) ->
     @event.removeAllListeners()
