@@ -2,11 +2,10 @@
   "name": "slitherlink",
   "version": "0.1.0-node",
   "description": "A script to solve slitherlink",
-  "main": "lib/main.js",
+  "main": "lib/solver.js",
   "private": true,
   "scripts": {
-    "start": "npm -s run devcompile && env NODE_PATH=./lib node lib/start.js",
-    "watch": "coffee -w -m -o lib/ -c src/"
+    "start": "/usr/bin/env NODE_PATH=./lib node ./lib/cli.js"
   },
   "repository": {
     "type": "git",

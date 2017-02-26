@@ -11,7 +11,6 @@ module.exports =
   ###
 
   ID: 'b'
-  UNDEFINED: null
 
   key: (row, col) ->
     "#{@ID},#{row},#{col}"

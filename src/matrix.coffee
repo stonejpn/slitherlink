@@ -4,29 +4,16 @@ Line = require "./line"
 Box = require "./box"
 BoxPeer = require "./box-peer"
 ConnectorPeer = require "./connector-peer"
+PeerMap = require "./peer-map"
 Violation = require "./violation"
 
 module.exports =
   class Matrix
-    lines: null
-    boxes: null
+    lines: {}
+    boxes: {}
     totalLine: 0
 
-    # Arrayの重複を取り除くフィルター(よく使うので定義しておく)
-    unique_filter = (value, idx, list) -> list.indexOf(value) is idx
-
-    # objectの中で、valueの値を持つキーを見つける
-    # @return {Array}
-    keys_with_value = (obj, value) ->
-      callback = (key) -> obj[key] is value
-      Object.keys(obj).filter(callback, {obj, value})
-
-    filter_obj = (obj, key_list) ->
-      new_obj = {}
-      for key in key_list
-        new_obj[key] = obj[key]
-      return new_obj
-
+    # for printf() debug
     show_console = (data) ->
       if Array.isArray(data)
         console.log("Array: #{data.join(" ")}")
@@ -38,28 +25,24 @@ module.exports =
       else
         console.log("String: #{data}")
 
-  #
+    @fromJson: (json_str) ->
+      raw_object = JSON.parse(json_str)
+      new_matrix = new Matrix(raw_object.width, raw_object.height)
+      return Object.assign(new_matrix, raw_object)
+
+    #
     # @param {integer} width
     # @param {integer} height
     #
     constructor: (@width, @height) ->
       @lines = {}
-      Line.all(@width, @height, (key) => @lines[key] = Line.UNDEFINED)
+      Line.all(@width, @height, (key) => @lines[key] = Line.ToBeFixed)
       @boxes = {}
-      Box.all(@width, @height, (key) => @boxes[key] = Box.UNDEFINED)
-
+      Box.all(@width, @height, (key) => @boxes[key] = null)
       @totalLine = 0
 
     #
-    # クローン
-    # @retrun {Matrix}
-    #
-    clone: ->
-      new_matrix = new Matrix(@width, @height)
-      new_matrix.lines = Object.assign({}, @lines)
-      new_matrix.boxes = Object.assign({}, @boxes)
-      return new_matrix
-    
+    # 指定のあるBoxに値を設定する
     #
     # @param {string} grid ボックスの値を指定する文字列
     #
@@ -73,13 +56,6 @@ module.exports =
           col++
         row++
 
-      # 値が0のBoxを検出
-      box_list = keys_with_value(@boxes, 0)
-      for box_key in box_list
-        line_list = BoxPeer.getPeer(box_key)
-        for line_key in line_list
-          @blockLine(line_key) unless @lines[line_key]?
-
       return this
 
     #
@@ -89,12 +65,10 @@ module.exports =
       if @lines[line_key]?
         throw new Violation(Violation.Line, "draw line(#{line_key}) has been fixed.")
 
-      @lines[line_key] = Line.DRAW
+      @lines[line_key] = Line.Draw
       @totalLine++
 
       @lineChanged(line_key)
-      if @isConnected(line_key)
-        @inspectLoop(line_key)
 
     #
     # LineをBlockに変更する
@@ -103,87 +77,188 @@ module.exports =
       if @lines[line_key]?
         throw new Violation(Violation.Line, "block line(#{line_key}) has been fixed.")
 
-      @lines[line_key] = Line.BLOCK
+      @lines[line_key] = Line.Block
       @lineChanged(line_key)
 
     #
     # Lineの値を変えた後の処理
     #
     lineChanged: (changed_line) ->
-      # BoxPeerを調べる
-      for box_key in BoxPeer.getBoxes(changed_line)
-        continue unless @boxes[box_key]?
-
-        line_list = BoxPeer.getPeer(box_key)
-        line_map = filter_obj(@lines, line_list)
-
-        block_count = Line.countBlock(line_map)
-        if block_count > (4 - @boxes[box_key])
-          throw new Violation(Violation.Box, "too many blocks on #{box_key}")
-
-        draw_count = Line.countDraw(line_map)
-        if draw_count > @boxes[box_key]
-          throw new Violation(Violation.Box, "too many draws on #{box_key}")
-
-        if draw_count is @boxes[box_key]
-          for line_key in line_list
-            if not @lines[line_key]?
-              @blockLine(line_key)
+      # 隣接するBoxを調べる
+      @evalBoxValues(BoxPeer.getBoxes(changed_line))
 
       # ConnectorPeerを調べる
       for line_list in ConnectorPeer.getPeers(changed_line)
         line_list = line_list.concat(changed_line)
-        line_map = filter_obj(@lines, line_list)
-        if Line.countBlock(line_map) >= (line_list.length - 1)
+        if @countBlock(line_list) > (line_list.length - 2)
           # 行き止まり
           for line_key in line_list
-            if not @lines[line_key]?
-              @blockLine(line_key)
+            @blockLine(line_key) unless @lines[line_key]?
 
-        draw_count = Line.countDraw(line_map)
+        peer_map = PeerMap.Create(line_list, @lines)
+        draw_count = peer_map.draw.length
         if draw_count is 1
-          if Line.countUndefined(line_map) is 0
+          to_be_fixed_count = peer_map.to_be_fixed.length
+          # 1つDrawされていて、
+          if to_be_fixed_count is 0
+            # 他にToBeFixedがなかったら、行き止まりにDrawされている
             throw new Violation(Violation.Connector, "dead end #{changed_line}")
+
+          else if to_be_fixed_count is 1
+            # ToBeFixedが1つだったら、そこにDrawする
+            @drawLine(peer_map.to_be_fixed[0])
+
         else if draw_count is 2
           # Drawが2本あったら、他はBlockにする
           for line_key in line_list
-            if not @lines[line_key]?
-              @blockLine(line_key)
+            @blockLine(line_key) unless @lines[line_key]?
         else if draw_count > 2
           throw new Violation(Violation.Connector, "too many draws #{changed_line}")
 
-    isConnected: (line_key) ->
-      return false if @lines[line_key] isnt Line.DRAW
+    #
+    # Boxの値を評価
+    #
+    evalBoxValues: (list_to_eval=null) ->
+      if list_to_eval is null
+        # 全部を評価
+        list_to_eval = []
+        # box_value=0を評価 + 値の指定されているBoxとlist_to_evalに追加
+        for box_key, box_value of @boxes
+          continue unless box_value?
+          if box_value isnt 0
+            list_to_eval.push(box_key)
+            continue
 
-      connected = 0
-      for line_list in ConnectorPeer.getPeers(line_key)
-        line_map = filter_obj(@lines, line_list)
-        connected += Line.countDraw(line_map)
+          for line_key in BoxPeer.getPeer(box_key)
+            @blockLine(line_key) unless @lines[line_key]?
 
-      return connected is 2
+        # 4つの角の制約
+        block_list = []
+        draw_list = []
+        # 左上
+        box_value = @boxes[Box.key(1, 1)]
+        if box_value is 1
+          block_list.push(Line.horiz(0, 1), Line.vert(1, 0))
+        else if box_value is 3
+          draw_list.push(Line.horiz(0, 1), Line.vert(1, 0))
+        # 右上
+        box_value = @boxes[Box.key(1, @width)]
+        if box_value is 1
+          block_list.push(Line.horiz(0, @width), Line.vert(1, @width))
+        else if box_value is 3
+          draw_list.push(Line.horiz(0, @width), Line.vert(1, @width))
+        # 左下
+        box_value = @boxes[Box.key(@height, 1)]
+        if box_value is 1
+          block_list.push(Line.horiz(@height, 1), Line.vert(@height, 0))
+        else if box_value is 3
+          draw_list.push(Line.horiz(@height, 1), Line.vert(@height, 0))
+        # 右下
+        box_value = @boxes[Box.key(@height, @width)]
+        if box_value is 1
+          block_list.push(Line.horiz(@height, @width), Line.vert(@height, @width))
+        else if box_value is 3
+          draw_list.push(Line.horiz(@height, @width), Line.vert(@height, @width))
 
-    inspectLoop: (start_key) ->
+        for line_key in block_list
+          @blockLine(line_key) unless @lines[line_key]?
+        for line_key in draw_list
+          @drawLine(line_key) unless @lines[line_key]?
+
+
+      for box_key in list_to_eval
+        continue unless @boxes[box_key]?
+
+        # Blockの数に注目
+        peer_map = PeerMap.Create(BoxPeer.getPeer(box_key), @lines)
+        not_block_count = 4 - peer_map.block.length
+        if not_block_count < @boxes[box_key]
+          # Blockの数が多すぎる
+          throw new Violation(Violation.Box, "too many blocks on #{box_key}")
+
+        else if not_block_count is @boxes[box_key]
+          # Boxに必要な分のブロックがあるので、ToBeFixedはDrawにする
+          for line_key in peer_map.to_be_fixed
+            @drawLine(line_key) unless @lines[line_key]?
+
+        # Drawの数に注目
+        # 上のBlockの評価で、状態が変わっていることがあるので、peer_mapを更新する
+        peer_map = PeerMap.Create(BoxPeer.getPeer(box_key), @lines)
+        draw_count = peer_map.draw.length
+        to_be_fixed_count = peer_map.to_be_fixed.length
+        if draw_count > @boxes[box_key]
+          throw new Violation(Violation.Box, "too many draws on #{box_key}")
+
+        else if draw_count is @boxes[box_key]
+          # Boxに必要な分のDrawがあるので、ToBeFixedはBlockにする
+
+          for line_key in peer_map.to_be_fixed
+            @blockLine(line_key) unless @lines[line_key]?
+
+        else if draw_count + to_be_fixed_count is @boxes[box_key]
+          # DrawとToBeFixedを合わせるとBoxの値になるので、
+          # ToBeFixedをDrawにする
+
+          for line_key in peer_map.to_be_fixed
+            @drawLine(line_key) unless @lines[line_key]?
+
+      return this
+
+    isSatisfiedBoxValues: ->
       # すべてのBoxの値を満たしているか？
       for box_key, box_value of @boxes
         continue unless box_value?
+        if @countDraw(BoxPeer.getPeer(box_key)) isnt box_value
+          return false
+      return true
 
-        line_map = filter_obj(@lines, BoxPeer.getPeer(box_key))
-        if Line.countDraw(line_map) isnt box_value
-          throw new Violation(Violation.Loop, "unsatisfied box value #{box_key}")
+    #
+    # 次の候補のLineを探す
+    #
+    # @param {LineKey} start_key
+    # @return {false|LineKey[]} 次に試すLineのリスト、ループになっているときはfalse
+    #
+    nextLines: (start_key) ->
+      # まずは、start_keyの両端を調べる
+      for peer in ConnectorPeer.getPeers(start_key)
+        peer_map = PeerMap.Create(peer, @lines)
+        # つながってないので
+        return peer if peer_map.draw.length is 0
 
-      # ループを辿って自身に戻ってこれるか？
+      # 両端ともつながってるので、端っこを探す
       [prev_key, curr_key] = [start_key, start_key]
       loop
-        find = false
         for peer in ConnectorPeer.getPeers(curr_key)
-          unless peer.includes(prev_key)
-            for key in peer
-              if @lines[key] is Line.DRAW
-                [prev_key, curr_key] = [curr_key, key]
-                find = true
-                break
-            break if find
-        throw new Violation(Violation.Loop, "not loop") unless find
+          continue if peer.includes(prev_key)
 
-        break if curr_key is start_key
+          peer_map = PeerMap.Create(peer, @lines)
+          # つながっているので、次のLineへ移動
+          if peer_map.draw.length is 1
+            # スタートしたLineに戻ってきた
+            return null if peer_map.draw[0] is start_key
 
+            [prev_key, curr_key] = [curr_key, peer_map.draw[0]]
+            break
+
+          # 途切れたので、ToBeFixedのリストを返す
+          return peer_map.to_be_fixed
+
+    #
+    # 解くための最初のLineを探す
+    findStartList: ->
+      if @totalLine is 0
+        for box_value in [3, 2, 1]
+          box_list = Object.keys(@boxes).filter((key) => @boxes[key] is box_value)
+          return BoxPeer.getPeer(box_list[0]) if box_list.length isnt 0
+      else
+        line_list = Object.keys(@lines).filter((key) => @lines[key] is Line.Draw)
+        # 最初に見つかったLineの途切れたところを返す
+        return @nextLines(line_list[0])
+
+      return null
+
+    countDraw: (key_list) -> return @countLines(key_list, Line.Draw)
+    countBlock: (key_list) -> return @countLines(key_list, Line.Block)
+    countUndefined: (key_list) -> return @countLines(key_list, Line.ToBeFixed)
+    countLines: (key_list, status) ->
+      key_list.filter((key) => @lines[key] is status).length

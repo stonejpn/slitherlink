@@ -11,13 +11,13 @@ module.exports =
    * Boxの周りのLine
    * @type {Object.<BoxKey, LineKey[]}
   ###
-  _lines: null
+  _lines: []
 
   ###*
    * Lineに接するBox
    * @type {Object.<LineKey, BoxKey[]}
   ###
-  _boxes: null
+  _boxes: []
 
   ###*
    * 初期化
