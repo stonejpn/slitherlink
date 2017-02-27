@@ -33,7 +33,14 @@ module.exports =
       matrix.parseGrid(grid)
       Logger.initialized(matrix)
 
+      # watch in progress
+      Logger.headerInProgress("Evaluate Boxes")
+
+      # Boxの値を評価
       matrix.evalBoxValues()
+
+      # watch in prograss
+      Logger.messageInProgress("")
       Logger.headerInProgress("Initialized")
       Logger.matrixInProgress(matrix)
 
@@ -43,6 +50,7 @@ module.exports =
       if line_list?
         @event.emit('draw', JSON.stringify(matrix), line_key) for line_key in line_list
       else
+        Logger.messageInProgress("Loop detected. check if it solved.\n")
         unless worker.checkSolved(matrix)
           @notSolved("Something goes wrong.")
           Logger.showMatrix(matrix, true)

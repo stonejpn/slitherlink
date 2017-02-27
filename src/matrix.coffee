@@ -7,6 +7,7 @@ ConnectorPeer = require "./connector-peer"
 PeerMap = require "./peer-map"
 Violation = require "./violation"
 BoxConstraint = require "./box-constraint"
+Logger = require "./logger"
 
 module.exports =
   class Matrix
@@ -75,6 +76,7 @@ module.exports =
     # LineをDrawに変更する
     #
     drawLine: (line_key) ->
+      Logger.messageInProgress("drawLine: #{line_key}")
       if @lines[line_key]?
         throw new Violation(Violation.Line, "draw line(#{line_key}) has been fixed.")
 
@@ -87,6 +89,7 @@ module.exports =
     # LineをBlockに変更する
     #
     blockLine: (line_key) ->
+      Logger.messageInProgress("blockLine: #{line_key}")
       if @lines[line_key]?
         throw new Violation(Violation.Line, "block line(#{line_key}) has been fixed.")
 

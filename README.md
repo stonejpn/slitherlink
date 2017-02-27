@@ -9,9 +9,8 @@ $ cd path/to/slitherlink
 $ npm install
 ```
 
-### 問題の置き方
+### パズルのフォーマット
 
-`lib/cli.js`ファイルの先頭の方にある、変数`PUZZLE`の中身を書き換えます。
 フォーマットは、`タテxヨコ:グリッド`という形式になります。
 
 ```
@@ -29,8 +28,25 @@ $ npm install
 ### 実行
 
 ```bash
-$ npm start
+$ node lib/cli パズルの文字列
 ```
+
+```bash
+$ node lib/cli -h
+
+  Usage: cli [-w] [-l limit] [puzzle]
+
+  Options:
+
+    -h, --help          output usage information
+    -V, --version       output the version number
+    -w --watch          show all matrix in progress. (will output huge lines)
+    -l --limit [limit]  limit of attempt (default:1000)
+
+  Puzzle example:  3x3:.01...2..
+```
+
+コマンドラインで`puzzle`の指定がなかった場合は、標準入力から。
 
 ## なぜ作ったのか？
 

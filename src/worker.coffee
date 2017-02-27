@@ -42,7 +42,7 @@ module.exports =
           for next_line in next_list
             @event.emit('draw', matrix_json, next_line)
         else
-          Logger.messageInProgress("Loop detected. check if it solved?\n")
+          Logger.messageInProgress("Loop detected. check if it solved.\n")
           @checkSolved(matrix, curr_line)
 
       catch error
