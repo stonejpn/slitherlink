@@ -6,7 +6,8 @@
   "private": true,
   "scripts": {
     "start": "/usr/bin/env NODE_PATH=./lib node ./lib/cli.js",
-    "prepublish": "coffee -o lib/ -c src/"
+    "prepublish": "coffee -o lib/ -c src/",
+    "test": "mocha --compilers coffee:coffee-script/register spec/"
   },
   "repository": {
     "type": "git",

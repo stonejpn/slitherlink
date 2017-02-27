@@ -9,13 +9,15 @@ module.exports =
     @terminate: false
 
     constructor: (@event) ->
-      @event.on('next', (matrix, last_line) => @attempt(matrix, last_line))
+      @event.on('draw', (matrix_json, next_line) => @attempt(matrix_json, next_line))
 
     #
-    # @param {Matrix} matrix
+    # @param {string} matrix_json
     # @param {LineKey} last_line
     #
-    attempt: (matrix, last_line=null) ->
+    attempt: (matrix_json, curr_line) ->
+      # ----------------
+      # 強制終了
       return if Worker.terminate
 
       Worker.workload++
@@ -23,41 +25,35 @@ module.exports =
         Worker.terminate = true
         @event.emit('not-solved', "Over work")
         return
+      # ----------------
 
-      next_list = null
-      if last_line?
-        next_list = matrix.nextLines(last_line)
-      else
-        next_list = matrix.findStartList()
+      Logger.headerInProgress("attempt with #{curr_line} ##{Worker.workload}")
+      try
+        matrix = Matrix.fromJson(matrix_json)
+        matrix.drawLine(curr_line)
 
-      if next_list is null
-        # next_lineがnull -> ループが形成されている
-        # 解けているか、間違ったループかのどちらか
-        return @checkSolved(matrix, last_line)
+        # Violationが飛んでないので次のステップへ
+        Logger.matrixInProgress(matrix)
 
-      Logger.headerInProgress("attempt with #{last_line} ##{Worker.workload}")
+        next_list = matrix.nextLines(curr_line)
+        if next_list?
+          Logger.messageInProgress("No violation, go ahead.\n")
+          matrix_json = JSON.stringify(matrix)
+          for next_line in next_list
+            @event.emit('draw', matrix_json, next_line)
+        else
+          Logger.messageInProgress("Loop detected. check if it solved?\n")
+          @checkSolved(matrix, curr_line)
 
-      matrix_json = JSON.stringify(matrix)
-      for line_key in next_list
-        return if Worker.terminate
+      catch error
+        if error instanceof Violation
+          Logger.matrixInProgress(matrix)
+          Logger.messageInProgress("#{error}\n")
+        else
+          throw error
 
-        continue if matrix.lineValue(line_key)?
-
-        m = Matrix.fromJson(matrix_json)
-        try
-          m.drawLine(line_key)
-          Logger.matrixInProgress(m, "draw line #{line_key}")
-
-          @event.emit('next', m, line_key)
-        catch error
-          if error instanceof Violation
-            Logger.matrixInProgress(m)
-            Logger.messageInProgress("#{error}")
-          else
-            throw error
-
-    checkSolved: (matrix, last_line) ->
-      unless matrix.isSatisfiedBoxValues(last_line)
+    checkSolved: (matrix, last_line=null) ->
+      unless matrix.isSatisfiedBoxValues()
         Logger.messageInProgress("Not satisfied all box value.\n")
         return false
 

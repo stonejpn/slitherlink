@@ -196,50 +196,27 @@ describe "Matrix", ->
       expect(matrix.nextLines(Line.horiz(1, 3))).to.be.null
 
   describe "findStartList", ->
-    it.skip "Drawが1つもないケース", ->
-      matrix = new Matrix(3, 3)
-      matrix.parseGrid('.2..2....').evalBoxValues()
-      to_be = ['h,0,1', 'v,1,1', 'h,1,1', 'v,1,0']
+    it "Drawが1つもないケース", ->
+      matrix.parseGrid('.2.......').evalBoxValues()
+      expect(matrix.totalLine).to.be.equal(0)
 
-      expect(matrix.findStartList()).to.be.eql(to_be)
-
-    it.skip "Drawが１つはあるケース", ->
-      matrix.parseGrid(sample_grid).evalBoxValues()
-      to_be = ['v,3,3', 'h,2,3']
-
-      expect(matrix.findStartList()).to.be.eql(to_be)
-
-    it.skip "ループしてるケース", ->
-      # evalBoxValues()の段階で、解けているケース
-      matrix.parseGrid(sample_grid).evalBoxValues()
-      key = Line.horiz(2, 3)
-      matrix.lines[key] = Line.Draw
-
-      expect(matrix.findStartList()).to.be.null
-
-  describe "総合テスト", ->
-    beforeEach ->
-      matrix.parseGrid(sample_grid).evalBoxValues()
-
-    it.skip "正解の順路", ->
-      route = [
-        Line.horiz(1, 3)
-        Line.vert(2, 3)
-        Line.vert(3, 3)
-        Line.horiz(3, 3)
-        Line.horiz(3, 2)
-        Line.horiz(3, 1)
-        Line.vert(3, 0)
-        Line.vert(2, 0)
-        Line.horiz(1, 1)
-        Line.vert(2, 1)
-        Line.horiz(2, 2)
-        Line.vert(2, 2)
+      to_be = [
+        Line.horiz(0, 2)
+        Line.vert(1, 2)
+        Line.horiz(1, 2)
+        Line.vert(1, 1)
       ]
-      for key in route
-        # 何もおきない
-        expect(-> matrix.drawLine(key)).not.to.throw("Violation")
+      expect(matrix.findStartList()).to.be.eql(to_be)
 
-    it.skip "行き止まりの順路", ->
-      expect(-> matrix.drawLine(Line.vert(3, 1))).not.to.throw()
-      expect(-> matrix.drawLine(Line.horiz(2, 1))).to.throw(Violation)
+    it "Drawが１つはあるケース", ->
+      matrix.parseGrid('2........').evalBoxValues()
+      to_be = [
+        Line.horiz(0, 3)
+        Line.vert(1, 2)
+      ]
+      expect(matrix.findStartList()).to.be.eql(to_be)
+
+    it "ループしてるケース", ->
+      # evalBoxValues()の段階で、解けている
+      matrix.parseGrid('.3.3.3.3.').evalBoxValues()
+      expect(matrix.findStartList()).to.be.null

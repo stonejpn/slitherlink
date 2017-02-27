@@ -6,6 +6,7 @@ ConnectorPeer = require "./connector-peer"
 Matrix = require "./matrix"
 Logger = require "./logger"
 Worker = require "./worker"
+Violation = require "./violation"
 
 ###
 # Solver
@@ -37,12 +38,19 @@ module.exports =
       Logger.matrixInProgress(matrix)
 
       worker = new Worker(@event)
-      @event.emit('next', matrix)
-    catch error
-      if error.stack?
-        console.error("#{error.stack}")
+
+      line_list = matrix.findStartList()
+      if line_list?
+        @event.emit('draw', JSON.stringify(matrix), line_key) for line_key in line_list
       else
-        console.error("#{error}")
+        unless worker.checkSolved(matrix)
+          @notSolved("Something goes wrong.")
+          Logger.showMatrix(matrix, true)
+    catch error
+      if error instanceof Violation
+        @notSolved("Failed Initialization.\n#{error}")
+      else if error.stack?
+        console.error("#{error.stack}")
 
   solved: (matrix) ->
     @event.removeAllListeners()

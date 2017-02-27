@@ -28,7 +28,7 @@ module.exports =
 
     @fromJson: (json_str) ->
       raw_object = JSON.parse(json_str)
-      new_matrix = new Matrix(raw_object.w, raw_object.h)
+      new_matrix = new Matrix(raw_object.width, raw_object.height)
       return Object.assign(new_matrix, raw_object)
 
     #
@@ -135,13 +135,8 @@ module.exports =
       if list_to_eval is null
         # 全部を評価
         list_to_eval = Object.keys(@boxes).filter((box_key) => @boxes[box_key]?)
-
-        # box_value = 0
-        BoxConstraint.zeroValue(this)
-        # box_value = 3
-        BoxConstraint.threeValue(this)
-        # 4つの角の制約
-        BoxConstraint.corners(this)
+        # Boxの値での制約を適用
+        BoxConstraint.evaluate(this)
 
       for box_key in list_to_eval
         continue unless @boxes[box_key]?
@@ -189,7 +184,10 @@ module.exports =
           return false
       return true
 
-    isAllLineInLoop: (start_key) ->
+    isAllLineInLoop: (start_key=null) ->
+      if start_key is null
+        start_key = Object.keys(@lines).filter((key) => @lines[key] is Line.Draw)[0]
+
       [prev_key, curr_key] = [start_key, start_key]
       count = 0
       loop
